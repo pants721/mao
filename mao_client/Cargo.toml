@@ -1,0 +1,11 @@
+[package]
+name = "mao_client"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.89"
+env_logger = "0.11.5"
+mao_core = { version = "0.1.0", path = "../mao_core" }
+serde_json = "1.0.128"
+tungstenite = "0.24.0"

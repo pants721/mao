@@ -1,9 +1,10 @@
-use std::collections::HashMap;
-
 use anyhow::{anyhow, Result};
 use rand::{seq::SliceRandom, thread_rng};
+use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, strum::Display, PartialEq, PartialOrd)]
+pub mod web;
+
+#[derive(Deserialize, Serialize, Clone, Debug, strum::Display, PartialEq, PartialOrd)]
 pub enum Suit {
     Hearts,
     Spades,
@@ -11,7 +12,7 @@ pub enum Suit {
     Diamonds,
 }
 
-#[derive(Clone, Debug, strum::Display, PartialEq, PartialOrd)]
+#[derive(Deserialize, Serialize, Clone, Debug, strum::Display, PartialEq, PartialOrd)]
 pub enum Rank {
     Ace,
     Two,
@@ -28,7 +29,7 @@ pub enum Rank {
     King,
 }
 
-#[derive(Clone, Debug, PartialEq, PartialOrd)]
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq, PartialOrd)]
 pub struct Card {
     suit: Suit,
     rank: Rank,
@@ -105,14 +106,7 @@ pub fn std_deck() -> Vec<Card> {
     ]
 }
 
-#[derive(Clone, Debug)]
-pub struct Game {
-    deck: Vec<Card>,
-    play_stack: Vec<Card>,
-    pub players: Vec<Player>,
-}
-
-#[derive(Clone, Debug, Default)]
+#[derive(Deserialize, Serialize, Clone, Debug, Default)]
 pub struct Player {
     name: String,
     hand: Vec<Card>
@@ -122,6 +116,14 @@ impl Player {
     pub fn new(name: &str) -> Self {
         Self { name: name.to_string(), hand: vec![] }
     }
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug)]
+pub struct Game {
+    deck: Vec<Card>,
+    play_stack: Vec<Card>,
+    pub players: Vec<Player>,
+    // XXX: who is the king mao
 }
 
 impl Game {
@@ -188,8 +190,8 @@ impl Game {
         Ok(())
     }
 
-    pub fn draw_card(&mut self, player_name: &str) -> Result<()> {
-        if self.deck.is_empty() && self.play_stack.len() > 1 {
+    pub fn draw_card(&mut self, player_name: &str) -> Result<Option<Card>> {
+        if self.deck.is_empty() && self.play_stack.len() > 2 {
             while self.play_stack.len() > 1 {
                 let c = self.play_stack.remove(0);
                 self.deck.push(c);
@@ -198,13 +200,14 @@ impl Game {
         }
 
         if self.deck.is_empty() && self.play_stack.len() == 1 {
-            return Err(anyhow!("Draw pile is empty, skip turn"))
+            return Ok(None);
         }
 
         if let Some(idx) = self.players.iter().position(|p| p.name == player_name) {
             let player = self.players.get_mut(idx).unwrap();
-            player.hand.push(self.deck.pop().expect("Deck is somehow empty"));
-            return Ok(());
+            let top_card = self.deck.pop().expect("Deck is somehow empty");
+            player.hand.push(top_card.clone());
+            return Ok(Some(top_card));
         }
 
         Err(anyhow!("Could not find player by given name"))
