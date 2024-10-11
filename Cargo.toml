@@ -1,0 +1,7 @@
+[package]
+name = "mao"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+mao_core = { path = "./mao_core" }
