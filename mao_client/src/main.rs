@@ -1,13 +1,19 @@
+use futures_util::{SinkExt, StreamExt};
+use tokio_tungstenite::connect_async;
 use tungstenite::{connect, Message};
-
-use mao_core::*;
 use web::{ClientRequest, ServerResponse};
 use anyhow::Result;
+use wasm_bindgen::prelude::*;
+use leptos::*;
 
-fn main() -> Result<()> {
+use mao_core::*;
+
+
+#[tokio::main]
+async fn main() -> Result<()> {
     env_logger::init();
 
-    let (mut socket, response) = connect("ws://localhost:3012/socket").expect("Can't connect");
+    let (mut ws_stream, response) = connect_async("ws://localhost:3012/socket").await?;
 
     println!("Connected to the server");
     println!("Response HTTP code: {}", response.status());
@@ -16,19 +22,25 @@ fn main() -> Result<()> {
         println!("* {header}");
     }
 
-    socket.send(Message::Text(
+    ws_stream.send(Message::Text(
         serde_json::to_string(&ClientRequest::CreateLobby { hand_size: 2, player_name: "lucas".to_string() }).unwrap()
-    )).unwrap();
-    let msg = socket.read().expect("Error reading message");
-    println!("Received: {msg}");
-    let res = serde_json::from_str::<ServerResponse>(&msg.to_string()).unwrap();
-    socket.send(Message::Text(serde_json::to_string(&ClientRequest::StartGame { lobby_id: res.lobby.id.clone() })?))?;
+    )).await?;
 
-    loop {
-        socket.send(Message::Text(serde_json::to_string(&ClientRequest::DrawCard {player_id: "lucas".to_string(), lobby_id: res.lobby.id.clone() })?))?;
-        let msg = socket.read().expect("Error reading message");
-        println!("Received: {msg}");
+    if let Some(msg) = ws_stream.next().await {
+        let msg = msg?;
+        println!("Received: {}", msg);
         let res = serde_json::from_str::<ServerResponse>(&msg.to_string()).unwrap();
+        ws_stream.send(Message::Text(serde_json::to_string(&ClientRequest::StartGame { lobby_id: res.lobby.id.clone() })?)).await?;
+
     }
+
+    while let Some(msg) = ws_stream.next().await {
+        let msg = msg?;
+        println!("Received: {}", msg);
+        let res = serde_json::from_str::<ServerResponse>(&msg.to_string()).unwrap();
+        ws_stream.send(Message::Text(serde_json::to_string(&ClientRequest::DrawCard {player_id: "lucas".to_string(), lobby_id: res.lobby.id.clone() })?)).await?;
+    }
+
+    Ok(())
     // socket.close(None);
 }
